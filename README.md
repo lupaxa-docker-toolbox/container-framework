@@ -69,6 +69,10 @@ Codename tags, pushed in addition to the version:
 
 `SINGLE_OS=true` is the one-family layout. The directories under `Dockerfiles` are version tags only, and `SINGLE_OS_NAME` is the image name. `NO_OS_NAME_IN_CONTAINER=true` drops the operating system from the image name.
 
+`IMAGE_SHELL` sets the entrypoint when the finished image starts a different shell from the base image. Leave it empty to follow the base image.
+
+Version Helper always uses the base shell, so Alpine is queried with `ash` even when `IMAGE_SHELL` is `bash`.
+
 `Config/packages.cfg` uses the Version Helper lists. `DNF_PACKAGES` falls back to `YUM_PACKAGES` when it is unset. `APK_VIRTUAL_PACKAGES` is the unversioned Alpine list.
 
 ```text

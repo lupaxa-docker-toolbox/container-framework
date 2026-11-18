@@ -6,7 +6,8 @@
 # The directory names are the operating system and the tag. Debian uses the
 # numeric tag. CentOS Stream is the directory "centos" and the image
 # quay.io/centos/centos. Alpine uses ash. Slim and minimal images use sh.
-# Arch Linux is built and queried as linux/amd64.
+# Arch Linux is built and queried as linux/amd64. IMAGE_SHELL overrides the
+# entrypoint. Version Helper still uses the base image shell.
 #
 # Generate reads Templates/Dockerfile.tpl and replaces the @@TOKENS@@.
 # When Config/packages.cfg has a package list, generate downloads
@@ -225,12 +226,21 @@ shell_for() {
     esac
 }
 
-entrypoint_for() {
-    case "$(shell_for "$1" "$2")" in
+shell_path() {
+    case "$1" in
         ash) printf '%s\n' /bin/ash ;;
         sh) printf '%s\n' /bin/sh ;;
-        *) printf '%s\n' /bin/bash ;;
+        bash) printf '%s\n' /bin/bash ;;
+        *) abort "IMAGE_SHELL must be ash, sh, or bash (got: $1)" ;;
     esac
+}
+
+entrypoint_for() {
+    if [[ -n "${IMAGE_SHELL:-}" ]]; then
+        shell_path "${IMAGE_SHELL}"
+        return
+    fi
+    shell_path "$(shell_for "$1" "$2")"
 }
 
 read_fragment() {
