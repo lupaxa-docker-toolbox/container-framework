@@ -63,6 +63,10 @@ Codename tags, pushed in addition to the version:
 
 `latest` is Alma 10, Alpine 3.24, Amazon Linux 2023, Arch Linux, CentOS Stream 10, Debian 13, Oracle Linux 10, Photon 5.0, Rocky Linux 10, and Ubuntu 26.04.
 
+`Config/versions.cfg` is that catalogue. `Config/os.cfg` lists the families this repository builds, one name per line.
+
+`./manage-all.sh --sync` keeps those rows and removes the others. A repository with `SINGLE_OS=true` lists one family, and that name is `SINGLE_OS_NAME`. Image repositories download the catalogue from this repository.
+
 ## Configuration
 
 `Config/config.cfg` sets the image name prefix and the registries. GHCR publishes under `lupaxa-docker-toolbox`. Docker Hub publishes under `lupaxa`.
@@ -113,11 +117,14 @@ The supported set uses dnf or microdnf.
 From the repository root, a family directory, or a version directory:
 
 ```shell
+./manage-all.sh --sync
 ./manage-all.sh --generate
 ./manage-all.sh --build
 ./manage-all.sh --generate --build --clean
 ./manage-all.sh --publish --ghcr
 ```
+
+`--sync` rewrites the version directories from `Config/versions.cfg` for the families in `Config/os.cfg`. Cleanup links point at the fragment in this repository.
 
 A version directory has `manage.sh` instead of `manage-all.sh`. The flags are the same. That script already adds `latest` and the codename tag where this tree uses them.
 
