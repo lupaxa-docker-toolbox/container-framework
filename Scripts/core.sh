@@ -15,7 +15,10 @@
 #
 # Build passes IMAGE_CREATED. Publish pushes every tag, including latest
 # and any extra tags from manage.sh. --ghcr selects GHCR. Otherwise
-# the image is pushed to DOCKER_HUB_ORG on Docker Hub.
+# the image is pushed to DOCKER_HUB_ORG on Docker Hub. A GHCR push sets
+# the manifest annotation org.opencontainers.image.source so GitHub links
+# the package to this repository. A plain docker push does not. GitHub
+# has no API to change an organisation package between public and private.
 
 set -euo pipefail
 
@@ -399,8 +402,44 @@ publish_single_version() {
     docker push "${PUBLISHED_CONTAINER_NAME_FULL}:${tag}"
 }
 
+# GitHub links a container package to a repository from the manifest
+# annotation, not from the image config label. buildx writes that
+# annotation while it pushes. Index annotations are rejected for a
+# single-platform image.
+publish_ghcr() {
+    local source_url platform work tag
+    local -a cmd
+    source_url=$(get_git_url)
+    platform=$(docker image inspect "${LOCAL_CONTAINER_NAME}" --format '{{.Os}}/{{.Architecture}}')
+    [[ -n "${platform}" && "${platform}" != "/" ]] || abort "Unable to read the platform of ${LOCAL_CONTAINER_NAME}"
+    docker buildx version >/dev/null 2>&1 || abort "docker buildx is required to publish to GHCR"
+    cmd=(
+        docker buildx build
+        --push
+        --provenance=false
+        --sbom=false
+        --platform "${platform}"
+        --build-context "base=docker-image://${LOCAL_CONTAINER_NAME}"
+        --annotation "manifest:org.opencontainers.image.source=${source_url}"
+    )
+    for tag in "$@"; do
+        info "Publishing ${LOCAL_CONTAINER_NAME} to ${PUBLISHED_CONTAINER_NAME_FULL}:${tag}"
+        cmd+=(-t "${PUBLISHED_CONTAINER_NAME_FULL}:${tag}")
+    done
+    cmd+=(-f - .)
+    work=$(mktemp -d)
+    (
+        cd "${work}"
+        "${cmd[@]}" <<'EOF'
+FROM base
+EOF
+    )
+    rm -rf "${work}"
+}
+
 publish_container() {
     local tag_string image_id tag
+    local -a publish_tags=()
     require_command docker
     if [[ "${GHCR}" == true ]]; then
         [[ -n "${GHCR_ORGNAME}" ]] || abort "GHCR_ORGNAME is empty in Config/config.cfg"
@@ -416,13 +455,23 @@ publish_container() {
     fi
 
     image_id=$(get_image_id)
-    IFS=',' read -ra tags <<< "${tag_string}"
-    for tag in "${tags[@]}"; do
+    IFS=',' read -ra publish_tags <<< "${tag_string}"
+    local -a tags=()
+    for tag in "${publish_tags[@]}"; do
         tag=${tag#"${tag%%[![:space:]]*}"}
         tag=${tag%"${tag##*[![:space:]]}"}
         [[ -n "${tag}" ]] || continue
-        publish_single_version "${image_id}" "${tag}"
+        tags+=("${tag}")
     done
+    [[ ${#tags[@]} -gt 0 ]] || abort "No tags to publish for ${LOCAL_CONTAINER_NAME}"
+
+    if [[ "${GHCR}" == true ]]; then
+        publish_ghcr "${tags[@]}"
+    else
+        for tag in "${tags[@]}"; do
+            publish_single_version "${image_id}" "${tag}"
+        done
+    fi
     info "Complete"
 }
 
