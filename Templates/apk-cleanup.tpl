@@ -1,1 +1,1 @@
-	rm -rf /var/cache/apk/*
+	rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
